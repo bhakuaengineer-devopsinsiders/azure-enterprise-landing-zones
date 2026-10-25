@@ -1,0 +1,111 @@
+﻿tenant_id = "00000000-0000-0000-0000-000000000000"
+
+global_tags = {
+  "CostCenter"  = "Core-Platform-101"
+  "Owner"       = "bhakuaengineer-devopsinsiders"
+  "Environment" = "Enterprise-Production"
+}
+
+resource_groups = {
+  "hub_connectivity" = {
+    name        = "rg-hub-connectivity-eastus2"
+    location    = "eastus2"
+    environment = "Hub"
+  }
+  "spoke_corp_prod" = {
+    name        = "rg-spoke-corp-prod-eastus2"
+    location    = "eastus2"
+    environment = "Prod"
+  }
+  "spoke_online_prod" = {
+    name        = "rg-spoke-online-prod-eastus2"
+    location    = "eastus2"
+    environment = "Prod"
+  }
+}
+
+vnets = {
+  "hub_vnet" = {
+    name               = "vnet-hub-eastus2-001"
+    resource_group_key = "hub_connectivity"
+    address_space      = ["10.100.0.0/16"]
+    subnets = {
+      "firewall" = {
+        name           = "AzureFirewallSubnet"
+        address_prefix = "10.100.0.0/24"
+      }
+      "gateway" = {
+        name           = "GatewaySubnet"
+        address_prefix = "10.100.1.0/24"
+      }
+      "management" = {
+        name           = "snet-hub-mgmt"
+        address_prefix = "10.100.2.0/24"
+      }
+    }
+  }
+  "spoke_corp" = {
+    name               = "vnet-spoke-corp-eastus2-001"
+    resource_group_key = "spoke_corp_prod"
+    address_space      = ["10.101.0.0/16"]
+    subnets = {
+      "aks" = {
+        name           = "snet-corp-aks"
+        address_prefix = "10.101.0.0/20"
+      }
+      "data" = {
+        name           = "snet-corp-db"
+        address_prefix = "10.101.16.0/24"
+      }
+    }
+  }
+}
+
+nsgs = {
+  "nsg_corp_aks" = {
+    name               = "nsg-corp-aks-eastus2"
+    resource_group_key = "spoke_corp_prod"
+    rules = {
+      "DenyAllInboundInternet" = {
+        priority                   = 4096
+        direction                  = "Inbound"
+        access                     = "Deny"
+        protocol                   = "*"
+        source_address_prefix      = "Internet"
+        destination_address_prefix = "*"
+        description                = "Strict Zero-Trust: Deny all direct internet ingress"
+      }
+      "AllowHubVNetInbound" = {
+        priority                   = 100
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_address_prefix      = "10.100.0.0/16"
+        destination_port_ranges    = ["443", "6443"]
+        destination_address_prefix = "*"
+        description                = "Allow management and API traffic from central Hub"
+      }
+    }
+  }
+}
+
+route_tables = {
+  "udr_corp_to_firewall" = {
+    name               = "rt-spoke-corp-to-hub-fw"
+    resource_group_key = "spoke_corp_prod"
+    routes = {
+      "DefaultRouteToFirewall" = {
+        address_prefix         = "0.0.0.0/0"
+        next_hop_type          = "VirtualAppliance"
+        next_hop_in_ip_address = "10.100.0.4"
+      }
+    }
+  }
+}
+
+spoke_peerings = {
+  "corp" = {
+    spoke_rg_key   = "spoke_corp_prod"
+    spoke_vnet_key = "spoke_corp"
+  }
+}
